@@ -4,6 +4,8 @@ A virtual pet rabbit that lives in your terminal. Feed, play, cuddle,
 and watch your rabbit grow up! Time keeps passing while you're away,
 so there may be stories (and gifts) waiting when you come back.
 
+[![Run Python Tests](https://github.com/meanjollies/thumptty/actions/workflows/tests.yml/badge.svg)](https://github.com/meanjollies/thumptty/actions/workflows/tests.yml)
+
 ```
  (\_/)
  (^.^)
