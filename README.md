@@ -103,7 +103,9 @@ Each rabbit also has a **favorite food** (feeding it gives a bonus), a
 (dawn or dusk). Visiting during that time gives a happiness bonus once a day.
 
 ### Trust
-Good care builds trust; neglect and untreated illness erode it. Trust goes from
+Good care builds trust, but slowly: repeating the same kind of care within an
+hour earns less and less, and a rabbit that's already happy, or a hutch that's
+already clean, earns nothing. Neglect and untreated illness erode it. Trust goes from
 *wary* to *curious*, *friendly* and *devoted*. Higher trust unlocks:
 - a hop over to greet you when you arrive
 - rarer gifts while you're away
@@ -124,7 +126,7 @@ You start with 10 coins. Earn more from:
 | Ball | 15 | Playtime is less tiring |
 | Chew toy | 12 | Playtime is extra fun |
 | Tunnel, hay bale | 20–25 | Yard decor that slows down loneliness |
-| Treat | 3 | A happiness boost; too many in 6 hours can cause a tummy ache |
+| Treat | 3 | A happiness boost (not when full); too many in 6 hours can cause a tummy ache, or make a sick rabbit worse |
 | Medicine | 10 | Cures illness |
 
 ### Illness
@@ -172,7 +174,7 @@ To start over, delete the save file.
 python3 -m unittest -q test_pet
 ```
 
-All 75 tests should pass. They never wait for real time: a "two-day absence"
+All 79 tests should pass. They never wait for real time: a "two-day absence"
 is just a timestamp. If curses isn't installed, the two screen tests are
 skipped and the result shows `OK (skipped=2)`.
 

@@ -209,6 +209,7 @@ def upgrade(pet, rng=random):
     pet.setdefault("friend", None)
     pet.setdefault("birthdays", 0)
     pet.setdefault("treat_log", [])
+    pet.setdefault("bond_log", {})
     pet.setdefault("rhythm_day", None)
     pet.setdefault("meals", [])
     pet.setdefault("game_coins", {"day": None, "earned": 0})
@@ -265,6 +266,21 @@ def decor_count(pet):
 
 def bond(pet, amount):
     pet["trust"] = clamp(pet["trust"] + amount)
+
+
+BOND_WINDOW = 3600          # seconds over which repeated care of one kind is remembered
+BOND_REPEAT = 0.4           # each repeat inside the window earns this fraction of the previous gain
+
+
+def care_bond(pet, kind, amount, now=None):
+    """Trust from caring actions: repeats within an hour fade fast, and gains shrink as trust grows."""
+    now = time.time() if now is None else now
+    log = pet.setdefault("bond_log", {})
+    recent = [t for t in log.get(kind, []) if now - t < BOND_WINDOW]
+    gain = amount * (BOND_REPEAT ** len(recent)) * (1 - pet["trust"] / 125)
+    log[kind] = recent + [now]
+    if gain >= 0.01:
+        bond(pet, gain)
 
 
 def trust_level(pet):
@@ -589,7 +605,7 @@ def feed(pet, rng=random):
         kind, phrase = rng.choice(FOODS)
     pet["hunger"] = clamp(pet["hunger"] + 25)
     pet["meals"] = (pet["meals"] + [kind])[-MEAL_LIMIT:]
-    bond(pet, 0.4)
+    care_bond(pet, "feed", 0.4)
     if kind == pet["favorite"]:
         pet["hunger"] = clamp(pet["hunger"] + 10)
         pet["happiness"] = clamp(pet["happiness"] + 10)
@@ -606,10 +622,12 @@ def can_play(pet):
     return None
 
 
-def play(pet, rng=random):
+def play(pet, rng=random, now=None):
     why = can_play(pet)
     if why:
         return why, None
+    if pet["happiness"] <= 90:     # a rabbit that's already thrilled learns nothing new about you
+        care_bond(pet, "play", 0.6, now)
     w = pronouns(pet)
     gain = 20 + (5 if has(pet, "chew toy") else 0)
     extra = ""
@@ -620,23 +638,25 @@ def play(pet, rng=random):
     pet["energy"] = clamp(pet["energy"] - (6 if has(pet, "ball") else 10))
     pet["hunger"] = clamp(pet["hunger"] - 5)
     pet["cleanliness"] = clamp(pet["cleanliness"] - 3)
-    bond(pet, 0.6)
     return f"{pet['name']} does a binky!{extra}", "binky"
 
 
-def clean(pet, rng=random):
+def clean(pet, rng=random, now=None):
     if pet["sleeping"]:
         return _asleep(pet)
+    if pet["cleanliness"] <= 70:   # tidying a spotless hutch earns no trust
+        care_bond(pet, "clean", 0.3, now)
     pet["cleanliness"] = clamp(pet["cleanliness"] + 40)
-    bond(pet, 0.3)
     return f"You tidy the hutch. {pet['name']} looks pleased.", "wash"
 
 
-def cuddle(pet, rng=random):
+def cuddle(pet, rng=random, now=None):
     if pet["sleeping"]:
         return _asleep(pet)
+    if pet["happiness"] > 90:
+        return f"{pet['name']} wriggles away, not in the mood for cuddles.", None
     pet["happiness"] = clamp(pet["happiness"] + (14 if pet["trait"] == "clingy" else 8))
-    bond(pet, 1.0)
+    care_bond(pet, "cuddle", 1.0, now)
     return f"{pet['name']} leans into the scratches.", "heart"
 
 
@@ -655,21 +675,27 @@ def treat(pet, rng=random, now=None):
         return _asleep(pet)
     if not has(pet, "treat"):
         return "You're out of treats. The shop (b) sells more.", None
+    if pet["hunger"] > 90:
+        return f"{pet['name']} is too full for a treat.", None
     now = time.time() if now is None else now
     pet["inventory"]["treat"] -= 1
     pet["hunger"] = clamp(pet["hunger"] + 10)
     pet["happiness"] = clamp(pet["happiness"] + 12)
-    bond(pet, 0.5)
+    care_bond(pet, "treat", 0.5, now)
     pet["treat_log"] = [t for t in pet["treat_log"] if now - t < 6 * 3600] + [now]
     msg = f"{pet['name']} nibbles a banana slice. Yum!"
     chance = 0.25 * (len(pet["treat_log"]) - 1)    # first treat is safe; more within 6h risk a tummy ache
-    if not pet["illness"] and rng.random() < chance:
-        msg += (f" ...Uh oh, {pronouns(pet)['pos']} tummy gurgles. "
-                f"{_get_sick(pet, 'tummy ache')}")
+    if rng.random() < chance:
+        if pet["illness"]:
+            pet["health"] = clamp(pet["health"] - 5)
+            msg += f" ...Too many treats while unwell. {pet['name']} feels worse."
+        else:
+            msg += (f" ...Uh oh, {pronouns(pet)['pos']} tummy gurgles. "
+                    f"{_get_sick(pet, 'tummy ache')}")
     return msg, "eat"
 
 
-def medicine(pet, rng=random):
+def medicine(pet, rng=random, now=None):
     name = pet["name"]
     if pet["sleeping"]:
         return _asleep(pet)
@@ -691,7 +717,7 @@ def medicine(pet, rng=random):
     log(pet, f"{name} recovered from {w['pos']} {pet['illness']}.")
     pet["illness"], pet["illness_hours"] = None, 0.0
     pet["health"] = clamp(pet["health"] + 15)
-    bond(pet, 2.0)
+    care_bond(pet, "medicine", 2.0, now)
     return msg, "heart"
 
 
@@ -748,7 +774,7 @@ def finish_catch(pet, score, now=None):
     pet["hunger"] = clamp(pet["hunger"] - 5)
     wanted = score // 3
     coins = _game_coins(pet, wanted, now)
-    bond(pet, 0.8)
+    care_bond(pet, "catch", 0.8, now)
     if score == 0:
         return f"{pet['name']} didn't score any points. Better luck next time!"
     msg = f"{pet['name']} scored {score} point{'s' if score != 1 else ''}"
@@ -762,7 +788,7 @@ def finish_paws(pet, wins, now=None):
     pet["happiness"] = clamp(pet["happiness"] + 4 + 4 * wins)
     pet["energy"] = clamp(pet["energy"] - 3)
     coins = _game_coins(pet, wins * 2, now)
-    bond(pet, 0.5)
+    care_bond(pet, "paws", 0.5, now)
     return (f"You guessed right {wins} out of 3 times." + (f" (+{coins} coins)" if coins else "")
             + (LIMIT_NOTE if coins < wins * 2 else ""))
 

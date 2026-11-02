@@ -286,12 +286,59 @@ class World(unittest.TestCase):
         P.catch_up(pet, now=30 * H, rng=Never())
         self.assertLess(pet["trust"], 50)
 
+    def test_spamming_care_gains_little_trust(self):
+        for act in (P.cuddle, P.play, P.clean, P.treat):
+            pet = make(trust=10.0, happiness=10.0, cleanliness=10.0, energy=100.0,
+                       inventory={"treat": 99})
+            gains = []
+            for i in range(50):
+                pet["happiness"] = 10.0
+                pet["cleanliness"] = 10.0
+                pet["energy"] = 100.0
+                pet["illness"] = None
+                before = pet["trust"]
+                act(pet, now=1000.0 + i) if act is not P.treat else act(pet, rng=Never(), now=1000.0 + i)
+                gains.append(pet["trust"] - before)
+            self.assertLess(pet["trust"], 15, act.__name__)
+            self.assertGreater(gains[0], gains[-1])
+
+    def test_minigames_and_cures_cannot_be_farmed_for_trust(self):
+        pet = make(trust=10.0, inventory={"medicine": 99})
+        for i in range(50):
+            P.finish_catch(pet, 9, now=1000.0 + i)
+            P.finish_paws(pet, 3, now=1000.0 + i)
+            pet["illness"] = "sniffles"
+            P.medicine(pet, now=1000.0 + i)
+        self.assertLess(pet["trust"], 25)
+
+    def test_treat_refused_when_full_and_hurts_when_ill(self):
+        full = make(hunger=95.0, inventory={"treat": 2})
+        P.treat(full, rng=Never(), now=0)
+        self.assertEqual(full["inventory"]["treat"], 2)
+        sick = make(hunger=50.0, illness="sniffles", inventory={"treat": 3})
+        P.treat(sick, rng=Always(), now=0)
+        health = sick["health"]
+        P.treat(sick, rng=Always(), now=1)
+        self.assertLess(sick["health"], health)
+
+    def test_cuddle_refused_when_happy_and_trust_recovers_after_window(self):
+        pet = make(happiness=95.0)
+        before = pet["trust"]
+        P.cuddle(pet, now=0)
+        self.assertEqual(pet["trust"], before)
+        pet["happiness"] = 10.0
+        P.cuddle(pet, now=0)
+        first = pet["trust"] - before
+        pet["happiness"] = 10.0
+        P.cuddle(pet, now=10 * 3600)
+        self.assertAlmostEqual(pet["trust"] - before - first, first, delta=0.1)
+
     def test_care_builds_trust(self):
         pet = make(hunger=40.0)
         before = pet["trust"]
         P.feed(pet, rng=Never())
         P.cuddle(pet)
-        self.assertGreater(pet["trust"], before + 1)
+        self.assertGreater(pet["trust"], before + 0.5)
         self.assertEqual(P.trust_level(make(trust=60.0)), "friendly")
 
     def test_visit_streak(self):
@@ -419,7 +466,7 @@ class Illness(unittest.TestCase):
         self.assertEqual(pet["illness"], "sniffles")
 
     def test_too_many_treats_cause_tummy_ache(self):
-        pet = make(inventory={"treat": 5})
+        pet = make(hunger=20.0, inventory={"treat": 5})
         for i in range(4):
             P.treat(pet, rng=Always(), now=1000 + i)       # Always: the dice roll always hits
         self.assertEqual(pet["illness"], "tummy ache")
