@@ -584,6 +584,8 @@ def status_text(pet):
     m = mood(pet)
     if m == "sick" and pet["illness"]:
         return f"sick ({pet['illness']})"
+    if m == "sick":
+        return "feeling run down"
     return {"sleeping": "sleeping", "gone": "passed away"}.get(m, f"feeling {m}")
 
 
@@ -699,9 +701,12 @@ def medicine(pet, rng=random, now=None):
     name = pet["name"]
     if pet["sleeping"]:
         return _asleep(pet)
-    if not pet["illness"]:
-        return f"{name} isn't sick.", None
     w = pronouns(pet)
+    if not pet["illness"]:
+        if pet["health"] < 50:
+            return (f"{name} isn't ill, just run down. Medicine won't help; "
+                    f"food, rest and a clean hutch will."), None
+        return f"{name} isn't sick.", None
     if has(pet, "medicine"):
         pet["inventory"]["medicine"] -= 1
         msg = f"You give {name} {w['pos']} medicine. {w['Sub']} {w['is']} on the mend."
