@@ -23,7 +23,7 @@ SLEEP_ENERGY_PER_HOUR = 12.0   # energy regained while asleep
 WAKE_ENERGY = 95.0             # a sleeping rabbit wakes up at this energy
 LOW = 15.0                     # a stat below this counts as "neglected"
 HEALTH_DRAIN = 2.0             # health lost per neglected stat per hour
-HEALTH_REGEN = 2.0             # health regained per hour when nothing is wrong
+HEALTH_REGEN = 5.0             # health regained per hour when nothing is wrong
 ILLNESS_DRAIN = 1.5            # extra health lost per hour while ill
 EVENT_CHANCE_PER_HOUR = 0.10   # chance per awake hour that something happens
 HISTORY_LIMIT = 60
@@ -705,7 +705,8 @@ def medicine(pet, rng=random, now=None):
     if not pet["illness"]:
         if pet["health"] < 50:
             return (f"{name} isn't ill, just run down. Medicine won't help; "
-                    f"food, rest and a clean hutch will."), None
+                    f"keep every need above {LOW:.0f} (food, rest, a clean hutch) "
+                    f"and {w['sub']} will slowly recover."), None
         return f"{name} isn't sick.", None
     if has(pet, "medicine"):
         pet["inventory"]["medicine"] -= 1
