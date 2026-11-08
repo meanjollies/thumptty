@@ -486,7 +486,7 @@ class Scene:
         if direction < 0:
             lines = mirror(lines)
         sw = max(len(l) for l in lines)
-        x = int(x)
+        x = max(1, min(int(x), scr.getmaxyx()[1] - sw - 2))   # wide poses (flop) mustn't clip
         y0 = GROUND - len(lines) - hop
         for i, line in enumerate(lines):
             for j, ch in enumerate(line):
